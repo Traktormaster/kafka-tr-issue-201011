@@ -4,7 +4,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import uuid
 from collections import defaultdict
 
 from confluent_kafka.cimpl import Consumer, Producer
@@ -29,16 +28,16 @@ def main(args):
         print("The input producer will produce all messages in parallel (at once) after the first message.")
 
     tr_args = [
-        sys.executable, os.path.join(HERE, "eos-transactions.py"), "-b", brokers, "-g", group_id, "-t", input_topic,
+        sys.executable, os.path.join(HERE, "eos-transactions.py"), "-b", brokers, "-g", group_id+"-tr", "-t", input_topic,
         "-p", str(input_partition), "-o", output_topic,
     ]
 
     output_consumer = Consumer(
         {
             "bootstrap.servers": brokers,
-            "group.id": str(uuid.uuid4()),
+            "group.id": group_id+"-pr",
             "auto.offset.reset": "earliest",
-            "enable.auto.commit": False,
+            "enable.auto.commit": True,
             "enable.partition.eof": False,
         }
     )
@@ -48,38 +47,41 @@ def main(args):
         'bootstrap.servers': brokers,
     })
 
-    with tempfile.NamedTemporaryFile(mode='w+') as f:
-        tr_proc = subprocess.Popen(tr_args, stderr=subprocess.STDOUT, stdout=f, cwd=HERE, close_fds=True)
-        try:
-            time.sleep(1)
-            assert tr_proc.poll() is None
-            tx = 0
-            for i in range(num_messages):
-                input_producer.produce(input_topic, key=b"xy", value=str(tx).encode("ascii"))
-                tx += 1
-                assert input_producer.flush(10) == 0
-                while serial or tx <= 1:
-                    msg = output_consumer.poll(1.0)
-                    if msg is None:
-                        continue
-                    assert msg.error() is None
-                    if tx == 1:
-                        t_start = time.time()
-                    break
-            if not serial:
-                for _ in range(num_messages-1):
-                    msg = output_consumer.poll(1.0)
-                    if msg is None:
-                        continue
-                    assert msg.error() is None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w+') as f:
+            tr_proc = subprocess.Popen(tr_args, stderr=subprocess.STDOUT, stdout=f, cwd=HERE, close_fds=True)
+            try:
+                time.sleep(1)
+                assert tr_proc.poll() is None
+                tx = 0
+                for i in range(num_messages):
+                    input_producer.produce(input_topic, key=b"xy", value=str(tx).encode("ascii"))
+                    tx += 1
+                    assert input_producer.flush(10) == 0
+                    while serial or tx <= 1:
+                        msg = output_consumer.poll(1.0)
+                        if msg is None:
+                            continue
+                        assert msg.error() is None
+                        if tx == 1:
+                            t_start = time.time()
+                        break
+                if not serial:
+                    for _ in range(num_messages-1):
+                        msg = output_consumer.poll(1.0)
+                        if msg is None:
+                            continue
+                        assert msg.error() is None
 
-            print("Processing took {}".format(time.time() - t_start))
-        finally:
-            if tr_proc.poll() is None:
-                tr_proc.terminate()
-                tr_proc.wait()
-        f.seek(0)
-        eos_out = f.read()
+                print("Processing took {}".format(time.time() - t_start))
+            finally:
+                if tr_proc.poll() is None:
+                    tr_proc.terminate()
+                    tr_proc.wait()
+            f.seek(0)
+            eos_out = f.read()
+    finally:
+        output_consumer.close()  # commit offsets
 
     i = 0
     c = False
@@ -123,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', dest="input_partition", default=0, type=int,
                         help="Input partition to consume from")
     parser.add_argument('-g', dest="group_id",
-                        default="eos_example_" + str(uuid.uuid4()),
+                        default="kafka-tr-issue-201011",
                         help="Consumer group")
 
     main(parser.parse_args())

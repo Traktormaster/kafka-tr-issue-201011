@@ -34,8 +34,8 @@ The demo was tested with the following software:
 # Running the demo
 1. Clone the repository and setup a python environment with the tools of your choice. The dependencies can be installed
 from the `requirements.txt`.
-2. Prepare a Kafka broker for testing with several topics for testing, which all have a single partition. 
-**For each run of the script be sure to use brand new topics.**
+2. Prepare a Kafka broker for testing with two topics for testing, which all have a single partition. 
+The demo uses a static default string for the group_id so the topics can be re-used and only the new messages will be processed by every consumer.
 
 ### Serial demo example
 ```
