@@ -8,7 +8,7 @@ message in the input topic of the transactor.
 # The demo
 The demo consists of two parts:
 * a slightly modified copy of the example called `eos-transactions.py`
-  * prints are replaced with sys.std writes to keep in sync with log output
+  * prints are replaced with sys.stdout writes to keep in sync with log output
   * each and every processed message is transacted one-by-one
   * transactor will wait for input and not exit
 * a script called `demo.py` that:
