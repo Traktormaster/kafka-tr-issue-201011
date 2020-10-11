@@ -1,5 +1,5 @@
 # kafka-tr-issue-201011
-Reproduction demo of a Kafka transactional producer issue that affects performance.
+Reproduction demo of a confluent-kafka transactional producer issue that affects performance.
 
 # Summary
 For some reason the `send_offsets_to_transaction()` call will be 50+ times slower when there is more than one
@@ -29,12 +29,14 @@ The demo was tested with the following software:
 * Linux 5.8.14
 * Kafka 2.5.0, 2.6.0 (from docker-hub of bitnami/kafka)
 * Python 3.8.6
-* confluent-kafka 1.5.0
+* confluent-kafka
+  * version ('1.5.0', 17104896)
+  * libversion ('1.5.0', 17105151)
 
 # Running the demo
 1. Clone the repository and setup a python environment with the tools of your choice. The dependencies can be installed
 from the `requirements.txt`.
-2. Prepare a Kafka broker for testing with two topics for testing, which all have a single partition. 
+2. Prepare a Kafka broker with two topics for testing, which all have a single partition. 
 The demo uses a static default string for the group_id so the topics can be re-used and only the new messages will be processed by every consumer.
 
 ### Serial demo example
@@ -73,6 +75,18 @@ Full output of the transactor:
 %7|1602409447.121|WAKEUPFD|rdkafka#consumer-1| [thrd:app]: 172.31.31.3:9092/bootstrap: Enabled low-latency ops queue wake-ups
 %7|1602409447.121|BRKMAIN|rdkafka#consumer-1| [thrd::0/internal]: :0/internal: Enter main broker thread
 ...
+```
+
+##### Broker log
+This is **all** that the broker logs during a run of the serial demo.
+```
+[2020-10-11 11:09:08,519] INFO [GroupCoordinator 1001]: Preparing to rebalance group kafka-tr-issue-201011-pr in state PreparingRebalance with old generation 12 (__consumer_offsets-2) (reason: Adding new member rdkafka-3b7a6cf3-9ba1-41de-8989-3787d6d41c13 with group instance id None) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:09:08,519] INFO [GroupCoordinator 1001]: Stabilized group kafka-tr-issue-201011-pr generation 13 (__consumer_offsets-2) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:09:08,520] INFO [GroupCoordinator 1001]: Assignment received from leader for group kafka-tr-issue-201011-pr for generation 13 (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:09:08,547] INFO [TransactionCoordinator id=1001] Initialized transactionalId eos-transactions.py with producerId 0 and producer epoch 6 on partition __transaction_state-26 (kafka.coordinator.transaction.TransactionCoordinator)
+[2020-10-11 11:09:10,801] INFO [GroupCoordinator 1001]: Member[group.instance.id None, member.id rdkafka-3b7a6cf3-9ba1-41de-8989-3787d6d41c13] in group kafka-tr-issue-201011-pr has left, removing it from the group (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:09:10,801] INFO [GroupCoordinator 1001]: Preparing to rebalance group kafka-tr-issue-201011-pr in state PreparingRebalance with old generation 13 (__consumer_offsets-2) (reason: removing member rdkafka-3b7a6cf3-9ba1-41de-8989-3787d6d41c13 on LeaveGroup) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:09:10,801] INFO [GroupCoordinator 1001]: Group kafka-tr-issue-201011-pr with generation 14 is now empty (__consumer_offsets-2) (kafka.coordinator.group.GroupCoordinator)
 ```
 
 ### Parallel demo example
@@ -126,6 +140,18 @@ Full output of the transactor:
 ...
 ```
 
+##### Broker log
+This is **all** that the broker logs during a run of the parallel demo. This is exactly the same as for the serial test and there seems to be no problem.
+```
+[2020-10-11 11:06:27,216] INFO [GroupCoordinator 1001]: Preparing to rebalance group kafka-tr-issue-201011-pr in state PreparingRebalance with old generation 10 (__consumer_offsets-2) (reason: Adding new member rdkafka-06d13ae0-3a6d-4473-9cae-3bc3b6c4123e with group instance id None) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:06:27,217] INFO [GroupCoordinator 1001]: Stabilized group kafka-tr-issue-201011-pr generation 11 (__consumer_offsets-2) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:06:27,218] INFO [GroupCoordinator 1001]: Assignment received from leader for group kafka-tr-issue-201011-pr for generation 11 (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:06:27,244] INFO [TransactionCoordinator id=1001] Initialized transactionalId eos-transactions.py with producerId 0 and producer epoch 5 on partition __transaction_state-26 (kafka.coordinator.transaction.TransactionCoordinator)
+[2020-10-11 11:06:31,121] INFO [GroupCoordinator 1001]: Member[group.instance.id None, member.id rdkafka-06d13ae0-3a6d-4473-9cae-3bc3b6c4123e] in group kafka-tr-issue-201011-pr has left, removing it from the group (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:06:31,121] INFO [GroupCoordinator 1001]: Preparing to rebalance group kafka-tr-issue-201011-pr in state PreparingRebalance with old generation 11 (__consumer_offsets-2) (reason: removing member rdkafka-06d13ae0-3a6d-4473-9cae-3bc3b6c4123e on LeaveGroup) (kafka.coordinator.group.GroupCoordinator)
+[2020-10-11 11:06:31,121] INFO [GroupCoordinator 1001]: Group kafka-tr-issue-201011-pr with generation 12 is now empty (__consumer_offsets-2) (kafka.coordinator.group.GroupCoordinator)
+```
+
 ### The logs
 The main difference that the logs immediately show is that there is some "retry" operations when the times are bad:
 ```
@@ -135,7 +161,7 @@ The main difference that the logs immediately show is that there is some "retry"
 %7|1602410740.707|RETRY|rdkafka#producer-2| [thrd:TxnCoordinator]: TxnCoordinator/1001: Moved 1 retry buffer(s) to output queue
 ...
 ```
-However it is unclear to me what the cause of this is. There is one additional line that indicates a broker-side transaction error:
+However it is unclear to me what the cause of this is. There is one additional line that indicates some transaction error:
 ```
 ...
 %7|1602410740.608|ADDPARTS|rdkafka#producer-2| [thrd:main]: TxnCoordinator/1001: AddPartitionsToTxn response: partition "demooutput1602410701": [0]: Broker: Producer attempted to update a transaction while another concurrent operation on the same transaction was ongoing
@@ -144,6 +170,6 @@ However it is unclear to me what the cause of this is. There is one additional l
 That I do not know how to correct either.
 
 # Conclusion
-It is unclear to me if this is a bug in librdkafka or the python binding, because there seems to be some failure on the broker side. (that could be the cause of some unintended behaviour by the transacting producer)
+It is unclear to me if this is a bug in librdkafka or the python binding.
 
 It is clear as day that the parallel processing **should** be faster than a serial one, but as the demo showcases it being 6 times slower.
