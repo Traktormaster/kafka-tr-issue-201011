@@ -76,7 +76,7 @@ Full output of the transactor:
 %7|1602409447.121|BRKMAIN|rdkafka#consumer-1| [thrd::0/internal]: :0/internal: Enter main broker thread
 ...
 ```
-A full log available is available as `demo-serial.log`.
+A full log is available as `demo-serial.log`.
 
 ##### Broker log
 This is **all** that the broker logs during a run of the serial demo.
@@ -140,7 +140,7 @@ Full output of the transactor:
 %7|1602410736.719|BRKMAIN|rdkafka#consumer-1| [thrd::0/internal]: :0/internal: Enter main broker thread
 ...
 ```
-A full log available is available as `demo-parallel.log`.
+A full log is available as `demo-parallel.log`.
 
 ##### Broker log
 This is **all** that the broker logs during a run of the parallel demo. This is exactly the same as for the serial test and there seems to be no problem.
