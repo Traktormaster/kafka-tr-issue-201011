@@ -113,6 +113,8 @@ def main(args):
         'bootstrap.servers': brokers,
         'transactional.id': 'eos-transactions.py',
         'debug': 'all',  # DEMO-CHANGE: log more for information
+        # DEMO-NOTE: adding this reduces the performance impact, but the error still persists
+        # 'retry.backoff.ms': 1,
     })
 
     # Initialize producer transaction.
